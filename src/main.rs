@@ -5,17 +5,27 @@
 
 #[macro_use] extern crate rocket;
 
+use home_file_share::Config;
+use rocket::State;
+use std::path::Path;
+
 #[launch]
 fn rocket() -> _
 {
-    rocket::build().mount("/", routes!
-    [
-        index,
-    ])
+	// Get config file
+	let config: Config = Config::from_file(Path::new("Config.toml"));
+
+	// Launch rocket
+	rocket::build()
+		.manage(config)
+		.mount("/", routes!
+		[
+			index,
+		])
 }
 
 #[get("/")]
-async fn index() -> String
+async fn index(config: &State<Config>) -> String
 {
-    "Hello world!".to_owned()
+	config.server.storage_root_loc.to_str().unwrap().to_owned()
 }
