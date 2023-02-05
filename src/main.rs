@@ -8,6 +8,7 @@
 use home_file_share::{Config, Resource};
 use rocket::{http::Status, State};
 use rocket::response::content::RawJson;
+use rocket::fs::NamedFile;
 use std::fs::ReadDir;
 use std::path::{Path, PathBuf};
 
@@ -23,7 +24,8 @@ fn rocket() -> _
 		.mount("/", routes!
 		[
 			index,
-			get_folder_contents
+			get_folder_contents,
+			get_file
 		])
 }
 
@@ -35,6 +37,30 @@ fn rocket() -> _
 async fn index(config: &State<Config>) -> String
 {
 	config.server.storage_root_loc.to_str().unwrap().to_owned()
+}
+
+// Serve a file
+#[get("/file/<filepath..>")]
+async fn get_file(filepath: PathBuf, config: &State<Config>) -> Result<NamedFile, Status>
+{
+	// Construct actual filepath
+	let full_path: PathBuf = config.server.storage_root_loc.join(&filepath);
+
+	// Return 404 if it's a directory
+	if full_path.is_dir()
+	{
+		Err(Status::BadRequest)
+	}
+
+	// Otherwise, return the requested file (if it exists)
+	else
+	{
+		match NamedFile::open(full_path).await.ok()
+		{
+			Some(requested_file) => Ok(requested_file),
+			None => Err(Status::NotFound)
+		}
+	}
 }
 
 //
