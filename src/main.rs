@@ -25,7 +25,8 @@ fn rocket() -> _
 		[
 			index,
 			get_folder_contents,
-			get_file
+			get_file,
+			create_folder
 		])
 }
 
@@ -106,4 +107,41 @@ async fn get_folder_contents(filepath: PathBuf, config: &State<Config>)
 
 	// Return all the data as a JSON
 	Ok(RawJson(serde_json::to_string(&contents).unwrap()))
+}
+
+// Create a new directory on the server
+#[get("/create-folder/<filepath..>")]
+async fn create_folder(filepath: PathBuf, config: &State<Config>) -> Status
+{
+	// Construct the path and create the directory
+	let full_path: PathBuf = config.server.storage_root_loc.join(&filepath);
+
+	match std::fs::create_dir(full_path)
+	{
+		Ok(_) => Status::Ok,
+		Err(error) =>
+		{
+			let error_message: String = error.to_string();
+
+			// Does the file already exist?
+			if error_message.contains("File exists")
+			{
+				Status::Conflict
+			}
+
+			// Is the filepath invalid?
+			else if error_message.contains("No such file or directory")
+			{
+				Status::NotFound
+			}
+
+			// The only uncovered error type according to the docs is
+			// invalid permissions, which qualifies as a 500
+			else
+			{
+				println!("{}", error_message);
+				Status::InternalServerError	
+			}
+		}
+	}
 }
