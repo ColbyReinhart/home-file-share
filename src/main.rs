@@ -26,7 +26,8 @@ fn rocket() -> _
 			index,
 			get_folder_contents,
 			get_file,
-			create_folder
+			create_folder,
+			delete
 		])
 }
 
@@ -140,6 +141,48 @@ async fn create_folder(filepath: PathBuf, config: &State<Config>) -> Status
 			else
 			{
 				println!("{}", error_message);
+				Status::InternalServerError	
+			}
+		}
+	}
+}
+
+// Delete an existing directory on the server
+// As a safety precaution, it requires that the directory is empty
+#[get("/delete-folder/<filepath..>")]
+async fn delete_folder(filepath: PathBuf, config: &State<Config>) -> Status
+{
+	// Construct the path and remove the directory
+	let full_path: PathBuf = config.server.storage_root_loc.join(&filepath);
+	
+	match std::fs::remove_dir(full_path)
+	{
+		Ok(()) => Status::Ok,
+		Err(error) =>
+		{
+			let error_message: String = error.to_string();
+			
+			// The directory is not empty
+			if error_message.contains("Directory not empty")
+			{
+				Status::Forbidden
+			}
+
+			// The folder doesn't exist
+			else if error_message.contains("No such file or directory")
+			{
+				Status::NotFound
+			}
+
+			// The resource isn't a directory
+			else if error_message.contains("Not a directory")
+			{
+				Status::BadRequest
+			}
+
+			// Probably a permissions issue, which is a 500
+			else
+			{
 				Status::InternalServerError	
 			}
 		}
